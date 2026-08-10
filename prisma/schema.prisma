@@ -1,0 +1,195 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+enum AttendanceType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum AttendanceStatus {
+  VALID
+  INVALID
+  PENDING
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKE_AWAY
+  DELIVERY
+  ONLINE
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  pin          String?
+  role         Role          @default(CASHIER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  employeeFace EmployeeFace?
+  attendances  Attendance[]
+  orders       Order[]
+
+  @@map("users")
+}
+
+model EmployeeFace {
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  faceDescriptor String       @db.Text
+  faceImageUrl   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  attendances    Attendance[]
+
+  @@map("employee_faces")
+}
+
+model Attendance {
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id])
+  employeeFaceId String?
+  employeeFace   EmployeeFace?    @relation(fields: [employeeFaceId], references: [id])
+  
+  type           AttendanceType
+  timestamp      DateTime         @default(now())
+  confidence     Decimal?         @db.Decimal(5, 4)
+  imageUrl       String?
+  location       String?
+  deviceInfo     String?
+  status         AttendanceStatus @default(VALID)
+  notes          String?
+
+  @@index([userId, timestamp])
+  @@map("attendances")
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  sku         String      @unique
+  price       Decimal     @db.Decimal(12, 2)
+  stock       Int         @default(0)
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  imageUrl    String?
+  modifiers   Modifier[]
+  orderItems  OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("products")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  shortcutKey String?
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Modifier {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  price     Decimal  @default(0) @db.Decimal(12, 2)
+
+  @@map("modifiers")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  points    Int      @default(0)
+  orders    Order[]
+  createdAt DateTime @default(now())
+
+  @@map("customers")
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  status        OrderStatus @default(PENDING)
+  type          OrderType   @default(DINE_IN)
+  subtotal      Decimal     @db.Decimal(12, 2)
+  discountTotal Decimal     @default(0) @db.Decimal(12, 2)
+  grandTotal    Decimal     @db.Decimal(12, 2)
+  
+  items         OrderItem[]
+  payments      Payment[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Decimal  @db.Decimal(12, 2)
+  notes     String?
+  modifiers Json?
+
+  @@map("order_items")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method    String
+  amount    Decimal  @db.Decimal(12, 2)
+  reference String?
+  createdAt DateTime @default(now())
+
+  @@map("payments")
+}
+
+model Promo {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  discount   Decimal  @db.Decimal(12, 2)
+  isPercent  Boolean  @default(false)
+  minSpend   Decimal  @default(0) @db.Decimal(12, 2)
+  isActive   Boolean  @default(true)
+
+  @@map("promos")
+}
