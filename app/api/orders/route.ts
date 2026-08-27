@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-const prisma = new PrismaClient({ adapter });
-
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -22,18 +17,35 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const outletId = searchParams.get("outletId");
         const status = searchParams.get("status");
-        const limit = parseInt(searchParams.get("limit") || "50");
+        const startDate = searchParams.get("startDate");
+        const endDate = searchParams.get("endDate");
+        const limit = parseInt(searchParams.get("limit") || "500");
 
         const where: any = {};
         if (outletId) where.outletId = outletId;
-        if (status) where.status = status;
+
+        if (status) {
+            where.status = status;
+        } else {
+            where.paymentStatus = "PAID";
+        }
+
+        // TAMBAHAN: Filter berdasarkan rentang tanggal dari halaman admin
+        if (startDate && endDate) {
+            where.createdAt = {
+                gte: new Date(startDate),
+                lte: new Date(endDate),
+            };
+        }
 
         const orders = await prisma.order.findMany({
             where,
             include: {
                 items: {
                     include: {
-                        product: true,
+                        product: {
+                            select: { id: true, name: true, sku: true, costPrice: true },
+                        },
                     },
                 },
                 cashier: {
@@ -63,6 +75,7 @@ export async function POST(req: NextRequest) {
             outletId,
             cashierId,
             customerId,
+            customerName,
             items,
             subtotal,
             taxAmount,
@@ -84,12 +97,17 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const selectedOutletId = outletId || (await prisma.outlet.findFirst({ where: { isActive: true }, select: { id: true } }))?.id;
+        if (!selectedOutletId) {
+            return NextResponse.json({ error: "Outlet belum tersedia" }, { status: 400 });
+        }
+
         // Use transaction to ensure data consistency
         const order = await prisma.$transaction(async (tx) => {
             // Create order
             const newOrder = await tx.order.create({
                 data: {
-                    outletId: outletId || "default-outlet-id", // Should be from session
+                    outletId: selectedOutletId,
                     orderNumber: generateOrderNumber(),
                     type,
                     status: "COMPLETED",
@@ -104,6 +122,7 @@ export async function POST(req: NextRequest) {
                     notes,
                     paymentStatus: "PAID",
                     completedAt: new Date(),
+                    customerName,
                     cashierId,
                     customerId,
                 },
@@ -112,6 +131,8 @@ export async function POST(req: NextRequest) {
             // Create order items and update stock
             for (const item of items) {
                 const product = await tx.product.findUnique({
+                    where: { sku: item.productId },
+                }) || await tx.product.findUnique({
                     where: { id: item.productId },
                 });
 
@@ -123,7 +144,7 @@ export async function POST(req: NextRequest) {
                 await tx.orderItem.create({
                     data: {
                         orderId: newOrder.id,
-                        productId: item.productId,
+                        productId: product.id,
                         productName: product.name,
                         quantity: item.quantity,
                         unitPrice: item.price,
@@ -133,12 +154,12 @@ export async function POST(req: NextRequest) {
                 });
 
                 // Update stock in OutletProduct
-                if (outletId) {
+                if (selectedOutletId) {
                     const outletProduct = await tx.outletProduct.findUnique({
                         where: {
                             outletId_productId: {
-                                outletId,
-                                productId: item.productId,
+                                outletId: selectedOutletId,
+                                productId: product.id,
                             },
                         },
                     });
@@ -152,17 +173,18 @@ export async function POST(req: NextRequest) {
                             },
                         });
 
-                        // Create inventory log
+                        // Create inventory log - fallback to first active cashier if cashierId not provided
+                        const resolvedCashierId = cashierId || (await tx.user.findFirst({ where: { role: "CASHIER", isActive: true }, select: { id: true } }))?.id || "system";
                         await tx.inventory.create({
                             data: {
-                                outletId,
-                                productId: item.productId,
+                                outletId: selectedOutletId,
+                                productId: product.id,
                                 type: "SALE",
                                 quantity: -item.quantity,
                                 previousStock: outletProduct.currentStock,
                                 currentStock: outletProduct.currentStock - item.quantity,
                                 note: `Sale - Order ${newOrder.orderNumber}`,
-                                createdBy: cashierId || "system",
+                                createdBy: resolvedCashierId,
                             },
                         });
                     }

@@ -8,9 +8,13 @@ echo "🚀 Starting deployment to VPS..."
 
 # VPS Configuration
 VPS_IP="137.59.126.116"
-VPS_USER="root"  # or your username
+VPS_USER="root"
+SSH_KEY="$HOME/.ssh/id_ed25519_kamikamikita"
 APP_DIR="/var/www/pos-system"
 DOMAIN="kamikamikita.site"
+
+# SSH options
+SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=30"
 
 # 1. Build the application locally
 echo "📦 Building application..."
@@ -25,22 +29,25 @@ echo "✅ Build successful!"
 
 # 2. Create deployment package
 echo "📦 Creating deployment package..."
+rm -f deploy.tar.gz
 tar -czf deploy.tar.gz \
     --exclude="node_modules" \
     --exclude=".next" \
     --exclude=".git" \
     --exclude="public/uploads" \
+    --exclude="deploy.tar.gz" \
+    --exclude="middleware.ts" \
     .
 
 echo "✅ Deployment package created!"
 
-# 3. Upload to VPS
+# 3. Upload to VPS (using SSH pipe instead of SCP to avoid subsystem issues)
 echo "📤 Uploading to VPS..."
-scp deploy.tar.gz $VPS_USER@$VPS_IP:$APP_DIR/
+cat deploy.tar.gz | ssh $SSH_OPTS $VPS_USER@$VPS_IP "cat > $APP_DIR/deploy.tar.gz"
 
 # 4. SSH to VPS and deploy
 echo "🔧 Deploying on VPS..."
-ssh $VPS_USER@$VPS_IP << 'ENDSSH'
+ssh $SSH_OPTS $VPS_USER@$VPS_IP << 'ENDSSH'
     cd /var/www/pos-system
     
     # Backup current version
@@ -53,17 +60,30 @@ ssh $VPS_USER@$VPS_IP << 'ENDSSH'
     # Extract new version
     tar -xzf deploy.tar.gz
     
-    # Install dependencies
-    npm install --production
+    # Install all dependencies (including devDependencies needed for build)
+    npm install
     
     # Generate Prisma client
     npx prisma generate
-    
-    # Push database schema
-    npx prisma db push
-    
-    # Restart application with PM2
-    pm2 restart pos-system || pm2 start npm --name "pos-system" -- start
+
+    # Source environment variables for database
+    set -a && source .env && set +a
+
+    # Push database schema (creates tables if not exist)
+    npx prisma db push --accept-data-loss
+
+    # Seed database dimatikan agar editan menu/stok di back office tidak tertimpa/reset saat deploy
+    # npx tsx scripts/seed-menu.ts
+    # npx tsx scripts/seed-staff.ts
+    # npx tsx scripts/seed-admin.ts
+
+    # Build production bundle (required by next start)
+    npm run build
+
+    # Restart application with PM2 (with env loaded)
+    pm2 delete pos-system 2>/dev/null || true
+    pm2 start npm --name "pos-system" -- start --update-env
+    pm2 save
     
     # Cleanup
     rm deploy.tar.gz

@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏪 KamiKamiKita - Advanced Fullstack POS & Backoffice System
 
-## Getting Started
+![Project Status](https://img.shields.io/badge/Status-Deployed_on_VPS-success) 
+![Tech Stack](https://img.shields.io/badge/Frontend-Next.js%20%7C%20Tailwind-blue)
+![Tech Stack](https://img.shields.io/badge/Backend-Golang-cyan)
 
-First, run the development server:
+## 📌 Overview
+KamiKamiKita is a comprehensive, production-ready Point of Sale (POS) and Backoffice management system designed specifically for F&B operations like coffee shops and slow bars. Built with a focus on real-world business logic, it handles everything from dynamic order queuing ("Bill Gantung") to secure employee management.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## ✨ Key Features
+- **Smart Cashier (POS):** 
+  - Streamlined transaction processing (Cash, QRIS, Transfer).
+  - **"Bill Gantung" (Hold Bill):** Allows cashiers to hold incomplete orders (e.g., waiting for customers to decide) without blocking the queue.
+  - Real-time cart calculation (Subtotal, Tax, Discounts).
+- **Admin Backoffice Dashboard:**
+  - Real-time sales recapitulation and profit tracking.
+  - Product and inventory management (SKU, COGS/HPP, Selling Price, Stock).
+  - Excel report generation for daily/monthly closing.
+- **Advanced Employee Management:**
+  - ✅ **Facial Recognition Attendance (Work in Progress):** UI and logic structure built for webcam-based clock-in/out. Currently working on stabilizing the camera API integration for the production environment.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🛠️ Tech Stack & Architecture
+- **Backend:** Golang (RESTful API)
+- **Frontend:** Next.js (App Router), TypeScript, Tailwind CSS
+- **Database / ORM:** PostgreSQL, Prisma ORM
+- **Infrastructure:** Independently deployed on a Linux Virtual Private Server (VPS). 
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 💡 Engineering Highlights
+1. **Concurrency & Performance:** The Golang backend is optimized to handle concurrent transaction requests during peak hours without data race conditions in stock management.
+2. **Modern Frontend Integration:** The UI is built using server-side rendering (SSR) capabilities of Next.js, ensuring fast load times and a native-app feel for the cashier interface.
+3. **Hardware Integration (WIP):** Structuring native browser integrations for webcam-based facial recognition.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+*Built as a final showcase project during the Hacktiv8 Golang Bootcamp.*
