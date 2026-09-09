@@ -17,6 +17,12 @@ export default function AdminSettingsPage() {
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
 
+    // State untuk Pengaturan PIN Kasir
+    const [cashierPin, setCashierPin] = useState("");
+    const [pinLoading, setPinLoading] = useState(false);
+    const [pinMessage, setPinMessage] = useState("");
+    const [pinError, setPinError] = useState("");
+
     useEffect(() => {
         try {
             const userStr = localStorage.getItem("kamikamikita-user");
@@ -28,6 +34,16 @@ export default function AdminSettingsPage() {
                 router.push("/login");
             }
         } catch { router.push("/login"); }
+
+        // Fetch PIN kasir yang aktif saat ini dari database VPS
+        fetch("/api/settings/pin")
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.pin) {
+                    setCashierPin(data.pin);
+                }
+            })
+            .catch(() => { });
     }, [router]);
 
     async function handleChangePassword(e: React.FormEvent) {
@@ -64,6 +80,34 @@ export default function AdminSettingsPage() {
             setError(err instanceof Error ? err.message : "Gagal mengubah password");
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function handleSavePin(e: React.FormEvent) {
+        e.preventDefault();
+        setPinLoading(true);
+        setPinError("");
+        setPinMessage("");
+
+        if (cashierPin.length !== 4) {
+            setPinError("PIN kasir harus tepat 4 digit angka");
+            setPinLoading(false);
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/settings/pin", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pin: cashierPin }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Gagal menyimpan PIN");
+            setPinMessage("✓ PIN Kasir berhasil diperbarui secara global di database VPS!");
+        } catch (err) {
+            setPinError(err instanceof Error ? err.message : "Gagal menyimpan PIN");
+        } finally {
+            setPinLoading(false);
         }
     }
 
@@ -118,7 +162,7 @@ export default function AdminSettingsPage() {
                     <header className="mb-6">
                         <p className="text-xs font-black uppercase tracking-[.25em] text-rose-600">Pengaturan</p>
                         <h1 className="mt-1 text-2xl font-black md:text-3xl">Profil & Keamanan</h1>
-                        <p className="mt-1 text-sm text-slate-500">Kelola akun admin, ubah password, dan pembersihan data uji coba.</p>
+                        <p className="mt-1 text-sm text-slate-500">Kelola akun admin, ubah password, PIN kasir, dan pembersihan data uji coba.</p>
                     </header>
 
                     {/* Profile Info */}
@@ -144,9 +188,36 @@ export default function AdminSettingsPage() {
                         </div>
                     </section>
 
+                    {/* Pengaturan PIN Kasir */}
+                    <section className="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+                        <h2 className="mb-4 text-lg font-bold">🔐 Pengaturan PIN Kasir</h2>
+                        <p className="mb-4 text-xs text-slate-500">Ubah PIN 4 digit untuk membuka halaman kasir di seluruh perangkat secara sinkron.</p>
+
+                        {pinMessage && <div className="mb-4 rounded-xl bg-emerald-50 p-3 text-center text-sm font-bold text-emerald-700">{pinMessage}</div>}
+                        {pinError && <div className="mb-4 rounded-xl bg-red-50 p-3 text-center text-sm font-bold text-red-700">⚠️ {pinError}</div>}
+
+                        <form onSubmit={handleSavePin} className="space-y-4">
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500">PIN Kasir Baru (4 Digit)</label>
+                                <input
+                                    type="password"
+                                    maxLength={4}
+                                    inputMode="numeric"
+                                    value={cashierPin}
+                                    onChange={e => setCashierPin(e.target.value)}
+                                    placeholder="Contoh: 1818"
+                                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg font-bold outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                                />
+                            </div>
+                            <button type="submit" disabled={pinLoading || cashierPin.length !== 4} className="w-full rounded-xl bg-slate-900 py-3.5 text-sm font-bold text-white shadow-lg transition hover:bg-slate-800 disabled:bg-slate-300">
+                                {pinLoading ? "Menyimpan..." : "💾 Simpan PIN Kasir"}
+                            </button>
+                        </form>
+                    </section>
+
                     {/* Change Password */}
                     <section className="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-                        <h2 className="mb-4 text-lg font-bold">🔒 Ubah Password</h2>
+                        <h2 className="mb-4 text-lg font-bold">🔒 Ubah Password Admin</h2>
 
                         {message && <div className="mb-4 rounded-xl bg-emerald-50 p-3 text-center text-sm font-bold text-emerald-700">{message}</div>}
                         {error && <div className="mb-4 rounded-xl bg-red-50 p-3 text-center text-sm font-bold text-red-700">⚠️ {error}</div>}

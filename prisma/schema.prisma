@@ -9,6 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+
 }
 
 // ==================== USER MANAGEMENT ====================
@@ -545,4 +546,10 @@ model DailyReport {
   @@unique([outletId, date])
   @@index([outletId, date])
   @@map("daily_reports")
+}
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
 }
